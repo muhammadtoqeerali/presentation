@@ -3458,14 +3458,29 @@
             localStorage.setItem('presentationComments', JSON.stringify(comments));
         }
 
-        // Load comments from localStorage
-        function loadCommentsFromStorage() {
+    // Load comments from GitHub (or fallback to local storage)
+    async function loadCommentsFromStorage() {
+        try {
+            // Try to load from GitHub first
+            const response = await fetch('https://muhammadtoqeerali.github.io/presentation/comments.json');
+            if (response.ok) {
+                const data = await response.json();
+                comments = data.comments || {};
+                updateCommentBadge();
+                console.log('Comments loaded from GitHub');
+            } else {
+                throw new Error('Comments file not found online');
+            }
+        } catch (error) {
+            // Fallback to local storage
+            console.log('Loading from local storage instead');
             const saved = localStorage.getItem('presentationComments');
             if (saved) {
                 comments = JSON.parse(saved);
                 updateCommentBadge();
             }
         }
+    }
 
         // Utility function to escape HTML
         function escapeHtml(text) {
