@@ -3227,383 +3227,411 @@
         <button class="nav-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
     </div>
 
-    <script>
-        // Global variables
-        let currentSlideIndex = 0;
-        let comments = {}; // Store comments by slide index
-        let commentsEnabled = true;
-        const slides = document.querySelectorAll('.slide');
-        const totalSlides = slides.length;
+<script>
+    // Global variables
+    let currentSlideIndex = 0;
+    let comments = {}; // Store comments by slide index
+    let commentsEnabled = true;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
 
-        // Initialize the presentation
-        function initPresentation() {
-            document.getElementById('totalSlides').textContent = totalSlides;
+    // Initialize the presentation
+    function initPresentation() {
+        document.getElementById('totalSlides').textContent = totalSlides;
+        updateSlideDisplay();
+        updateCommentBadge();
+        
+        // Load saved comments from Vercel API
+        loadCommentsFromStorage();
+    }
+
+    // Navigate to specific slide
+    function goToSlide(index) {
+        if (index >= 0 && index < totalSlides) {
+            currentSlideIndex = index;
             updateSlideDisplay();
+        }
+    }
+
+    // Previous slide
+    function changeSlide(direction) {
+        const newIndex = currentSlideIndex + direction;
+        if (newIndex >= 0 && newIndex < totalSlides) {
+            currentSlideIndex = newIndex;
+            updateSlideDisplay();
+        }
+    }
+
+    // Update slide display
+    function updateSlideDisplay() {
+        slides.forEach(slide => slide.classList.remove('active'));
+        slides[currentSlideIndex].classList.add('active');
+        
+        // Update slide counter
+        document.getElementById('currentSlide').textContent = currentSlideIndex + 1;
+        
+        // Update navigation buttons
+        document.getElementById('prevBtn').disabled = currentSlideIndex === 0;
+        document.getElementById('nextBtn').disabled = currentSlideIndex === totalSlides - 1;
+        
+        // Update comment badge
+        updateCommentBadge();
+        
+        // Trigger animations for slide content
+        const slideContent = slides[currentSlideIndex].querySelector('.slide-content');
+        if (slideContent) {
+            slideContent.style.animation = 'none';
+            setTimeout(() => {
+                slideContent.style.animation = '';
+            }, 10);
+        }
+    }
+
+    // Toggle fullscreen
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            document.body.classList.add('presentation-mode');
+        } else {
+            document.exitFullscreen();
+            document.body.classList.remove('presentation-mode');
+        }
+    }
+
+    // Toggle comments system
+    function toggleCommentsSystem() {
+        const enabled = document.getElementById('enableComments').checked;
+        commentsEnabled = enabled;
+        
+        if (enabled) {
+            document.body.classList.remove('comments-disabled');
+        } else {
+            document.body.classList.add('comments-disabled');
+            closeCommentPanel();
+        }
+    }
+
+    // Open comment panel
+    function openCommentPanel() {
+        if (!commentsEnabled) return;
+        
+        document.getElementById('commentOverlay').classList.add('active');
+        document.getElementById('currentSlideNum').textContent = currentSlideIndex + 1;
+        loadCommentsForCurrentSlide();
+        
+        // Clear form
+        document.getElementById('authorName').value = '';
+        document.getElementById('commentText').value = '';
+    }
+
+    // Close comment panel
+    function closeCommentPanel(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById('commentOverlay').classList.remove('active');
+    }
+
+    // Load comments for current slide
+    function loadCommentsForCurrentSlide() {
+        const commentList = document.getElementById('commentList');
+        const slideComments = comments[currentSlideIndex] || [];
+        
+        if (slideComments.length === 0) {
+            commentList.innerHTML = '<div class="no-comments">No comments yet. Be the first to add feedback!</div>';
+            return;
+        }
+        
+        let html = '';
+        slideComments.forEach(comment => {
+            html += `
+                <div class="comment-item">
+                    <div class="comment-author">${escapeHtml(comment.author)}</div>
+                    <div class="comment-time">${comment.timestamp}</div>
+                    <div class="comment-text">${escapeHtml(comment.text)}</div>
+                </div>
+            `;
+        });
+        
+        commentList.innerHTML = html;
+    }
+
+    // Add new comment
+    async function addComment() {
+        const author = document.getElementById('authorName').value.trim();
+        const text = document.getElementById('commentText').value.trim();
+        
+        if (!author || !text) {
+            showNotification('Please fill in both your name and comment!', 'warning');
+            return;
+        }
+        
+        // Initialize comments array for this slide if needed
+        if (!comments[currentSlideIndex]) {
+            comments[currentSlideIndex] = [];
+        }
+        
+        // Create comment object
+        const comment = {
+            author: author,
+            text: text,
+            timestamp: new Date().toLocaleString(),
+            slideIndex: currentSlideIndex
+        };
+        
+        // Add comment
+        comments[currentSlideIndex].push(comment);
+        
+        // Save to Vercel API
+        await saveCommentsToStorage();
+        
+        // Update displays
+        loadCommentsForCurrentSlide();
+        updateCommentBadge();
+        
+        // Clear form
+        document.getElementById('authorName').value = '';
+        document.getElementById('commentText').value = '';
+        
+        // Show success feedback
+        showNotification('Comment added successfully!', 'success');
+    }
+
+    // Update comment badge
+    function updateCommentBadge() {
+        let totalComments = 0;
+        Object.values(comments).forEach(slideComments => {
+            totalComments += slideComments.length;
+        });
+        
+        const badge = document.getElementById('commentBadge');
+        if (totalComments > 0) {
+            badge.textContent = totalComments;
+            badge.classList.add('show');
+        } else {
+            badge.classList.remove('show');
+        }
+    }
+
+    // Export all comments
+    function exportAllComments() {
+        if (Object.keys(comments).length === 0) {
+            showNotification('No comments to export!', 'warning');
+            return;
+        }
+        
+        const exportData = {
+            presentationTitle: document.title,
+            exportDate: new Date().toISOString(),
+            totalSlides: totalSlides,
+            comments: comments,
+            summary: {
+                totalComments: Object.values(comments).reduce((sum, arr) => sum + arr.length, 0),
+                slidesWithComments: Object.keys(comments).length
+            }
+        };
+        
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `presentation-comments-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showNotification('Comments exported successfully!', 'success');
+    }
+
+    // Clear all comments
+    async function clearAllComments() {
+        if (confirm('Are you sure you want to delete all comments? This action cannot be undone.')) {
+            comments = {};
+            await saveCommentsToStorage();
+            loadCommentsForCurrentSlide();
             updateCommentBadge();
-            
-            // Load saved comments from localStorage
-            loadCommentsFromStorage();
+            showNotification('All comments cleared!', 'success');
         }
+    }
 
-        // Navigate to specific slide
-        function goToSlide(index) {
-            if (index >= 0 && index < totalSlides) {
-                currentSlideIndex = index;
-                updateSlideDisplay();
+    // Load comments from Vercel API
+    async function loadCommentsFromStorage() {
+        try {
+            const response = await fetch('https://presentation-lime.vercel.app/api/comments');
+            if (response.ok) {
+                const data = await response.json();
+                comments = data.comments || {};
+                updateCommentBadge();
+                console.log('Comments loaded from Vercel API');
+            } else {
+                throw new Error('Failed to load comments');
             }
-        }
-
-        // Previous slide
-        function changeSlide(direction) {
-            const newIndex = currentSlideIndex + direction;
-            if (newIndex >= 0 && newIndex < totalSlides) {
-                currentSlideIndex = newIndex;
-                updateSlideDisplay();
-            }
-        }
-
-        // Update slide display
-        function updateSlideDisplay() {
-            slides.forEach(slide => slide.classList.remove('active'));
-            slides[currentSlideIndex].classList.add('active');
+        } catch (error) {
+            console.error('Error loading comments:', error);
+            showNotification('Could not load comments from server', 'warning');
             
-            // Update slide counter
-            document.getElementById('currentSlide').textContent = currentSlideIndex + 1;
-            
-            // Update navigation buttons
-            document.getElementById('prevBtn').disabled = currentSlideIndex === 0;
-            document.getElementById('nextBtn').disabled = currentSlideIndex === totalSlides - 1;
-            
-            // Update comment badge
+            // Fallback to empty comments
+            comments = {};
             updateCommentBadge();
+        }
+    }
+
+    // Save comments to Vercel API
+    async function saveCommentsToStorage() {
+        try {
+            const response = await fetch('https://presentation-lime.vercel.app/api/comments', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ comments: comments })
+            });
             
-            // Trigger animations for slide content
-            const slideContent = slides[currentSlideIndex].querySelector('.slide-content');
-            if (slideContent) {
-                slideContent.style.animation = 'none';
-                setTimeout(() => {
-                    slideContent.style.animation = '';
-                }, 10);
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Comments saved to Vercel:', result);
+                showNotification('Comments saved and shared with everyone!', 'success');
+            } else {
+                throw new Error('Failed to save comments');
+            }
+        } catch (error) {
+            console.error('Error saving comments:', error);
+            showNotification('Could not save comments to server', 'error');
+            
+            // Fallback to local storage
+            localStorage.setItem('presentationComments', JSON.stringify(comments));
+            showNotification('Comments saved locally as backup', 'warning');
+        }
+    }
+
+    // Auto-refresh comments every 30 seconds to see others' comments
+    setInterval(async () => {
+        if (!document.getElementById('commentOverlay').classList.contains('active')) {
+            await loadCommentsFromStorage();
+            if (document.getElementById('commentOverlay').classList.contains('active')) {
+                loadCommentsForCurrentSlide();
             }
         }
+    }, 30000);
 
-        // Toggle fullscreen
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-                document.body.classList.add('presentation-mode');
-            } else {
-                document.exitFullscreen();
-                document.body.classList.remove('presentation-mode');
-            }
-        }
+    // Utility function to escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
-        // Toggle comments system
-        function toggleCommentsSystem() {
-            const enabled = document.getElementById('enableComments').checked;
-            commentsEnabled = enabled;
-            
-            if (enabled) {
-                document.body.classList.remove('comments-disabled');
-            } else {
-                document.body.classList.add('comments-disabled');
+    // Show notification
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: ${type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : type === 'error' ? '#dc3545' : '#007bff'};
+            color: ${type === 'warning' ? '#000' : 'white'};
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-weight: 600;
+            z-index: 10000;
+            animation: slideDown 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        `;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideUp 0.3s ease';
+            setTimeout(() => {
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', function(e) {
+        if (document.getElementById('commentOverlay').classList.contains('active')) {
+            if (e.key === 'Escape') {
                 closeCommentPanel();
             }
+            return;
         }
-
-        // Open comment panel
-        function openCommentPanel() {
-            if (!commentsEnabled) return;
-            
-            document.getElementById('commentOverlay').classList.add('active');
-            document.getElementById('currentSlideNum').textContent = currentSlideIndex + 1;
-            loadCommentsForCurrentSlide();
-            
-            // Clear form
-            document.getElementById('authorName').value = '';
-            document.getElementById('commentText').value = '';
-        }
-
-        // Close comment panel
-        function closeCommentPanel(event) {
-            if (event && event.target !== event.currentTarget) return;
-            document.getElementById('commentOverlay').classList.remove('active');
-        }
-
-        // Load comments for current slide
-        function loadCommentsForCurrentSlide() {
-            const commentList = document.getElementById('commentList');
-            const slideComments = comments[currentSlideIndex] || [];
-            
-            if (slideComments.length === 0) {
-                commentList.innerHTML = '<div class="no-comments">No comments yet. Be the first to add feedback!</div>';
-                return;
-            }
-            
-            let html = '';
-            slideComments.forEach(comment => {
-                html += `
-                    <div class="comment-item">
-                        <div class="comment-author">${escapeHtml(comment.author)}</div>
-                        <div class="comment-time">${comment.timestamp}</div>
-                        <div class="comment-text">${escapeHtml(comment.text)}</div>
-                    </div>
-                `;
-            });
-            
-            commentList.innerHTML = html;
-        }
-
-        // Add new comment
-        function addComment() {
-            const author = document.getElementById('authorName').value.trim();
-            const text = document.getElementById('commentText').value.trim();
-            
-            if (!author || !text) {
-                showNotification('Please fill in both your name and comment!', 'warning');
-                return;
-            }
-            
-            // Initialize comments array for this slide if needed
-            if (!comments[currentSlideIndex]) {
-                comments[currentSlideIndex] = [];
-            }
-            
-            // Create comment object
-            const comment = {
-                author: author,
-                text: text,
-                timestamp: new Date().toLocaleString(),
-                slideIndex: currentSlideIndex
-            };
-            
-            // Add comment
-            comments[currentSlideIndex].push(comment);
-            
-            // Save to localStorage
-            saveCommentsToStorage();
-            
-            // Update displays
-            loadCommentsForCurrentSlide();
-            updateCommentBadge();
-            
-            // Clear form
-            document.getElementById('authorName').value = '';
-            document.getElementById('commentText').value = '';
-            
-            // Show success feedback
-            showNotification('Comment added successfully!', 'success');
-        }
-
-        // Update comment badge
-        function updateCommentBadge() {
-            let totalComments = 0;
-            Object.values(comments).forEach(slideComments => {
-                totalComments += slideComments.length;
-            });
-            
-            const badge = document.getElementById('commentBadge');
-            if (totalComments > 0) {
-                badge.textContent = totalComments;
-                badge.classList.add('show');
-            } else {
-                badge.classList.remove('show');
-            }
-        }
-
-        // Export all comments
-        function exportAllComments() {
-            if (Object.keys(comments).length === 0) {
-                showNotification('No comments to export!', 'warning');
-                return;
-            }
-            
-            const exportData = {
-                presentationTitle: document.title,
-                exportDate: new Date().toISOString(),
-                totalSlides: totalSlides,
-                comments: comments,
-                summary: {
-                    totalComments: Object.values(comments).reduce((sum, arr) => sum + arr.length, 0),
-                    slidesWithComments: Object.keys(comments).length
-                }
-            };
-            
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `presentation-comments-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showNotification('Comments exported successfully!', 'success');
-        }
-
-        // Clear all comments
-        function clearAllComments() {
-            if (confirm('Are you sure you want to delete all comments? This action cannot be undone.')) {
-                comments = {};
-                saveCommentsToStorage();
-                loadCommentsForCurrentSlide();
-                updateCommentBadge();
-                showNotification('All comments cleared!', 'success');
-            }
-        }
-// Load comments from Vercel API
-async function loadCommentsFromStorage() {
-    try {
-        const response = await fetch('https://presentation-lime.vercel.app/api/comments');
-        if (response.ok) {
-            const data = await response.json();
-            comments = data.comments || {};
-            updateCommentBadge();
-            console.log('Comments loaded from Vercel API');
-            showNotification('Comments loaded successfully!', 'success');
-        } else {
-            throw new Error('Failed to load comments');
-        }
-    } catch (error) {
-        console.error('Error loading comments:', error);
-        showNotification('Could not load comments from server', 'warning');
         
-        // Fallback to empty comments
-        comments = {};
-        updateCommentBadge();
+        switch(e.key) {
+            case 'ArrowRight':
+            case ' ':
+                e.preventDefault();
+                changeSlide(1);
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                changeSlide(-1);
+                break;
+            case 'f':
+            case 'F11':
+                e.preventDefault();
+                toggleFullscreen();
+                break;
+            case 'c':
+            case 'C':
+                e.preventDefault();
+                openCommentPanel();
+                break;
+        }
+    });
+
+    // Auto-hide navigation in fullscreen
+    let navigationTimeout;
+    const navigation = document.querySelector('.navigation');
+    const slideIndicator = document.querySelector('.slide-indicator');
+
+    function resetNavigationTimeout() {
+        clearTimeout(navigationTimeout);
+        if (navigation) navigation.style.opacity = '1';
+        if (slideIndicator) slideIndicator.style.opacity = '1';
+        
+        navigationTimeout = setTimeout(() => {
+            if (document.fullscreenElement) {
+                if (navigation) navigation.style.opacity = '0.3';
+                if (slideIndicator) slideIndicator.style.opacity = '0.3';
+            }
+        }, 3000);
     }
-}
 
-// Save comments to Vercel API
-async function saveCommentsToStorage() {
-    try {
-        const response = await fetch('https://presentation-lime.vercel.app/api/comments', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ comments: comments })
-        });
-        // Utility function to escape HTML
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+    document.addEventListener('mousemove', resetNavigationTimeout);
+    document.addEventListener('keydown', resetNavigationTimeout);
+    document.addEventListener('touchstart', resetNavigationTimeout);
 
-        // Show notification
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: ${type === 'success' ? '#28a745' : type === 'warning' ? '#ffc107' : '#007bff'};
-                color: ${type === 'warning' ? '#000' : 'white'};
-                padding: 15px 25px;
-                border-radius: 25px;
-                font-weight: 600;
-                z-index: 10000;
-                animation: slideDown 0.3s ease;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            `;
-            notification.textContent = message;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.animation = 'slideUp 0.3s ease';
-                setTimeout(() => {
-                    if (document.body.contains(notification)) {
-                        document.body.removeChild(notification);
-                    }
-                }, 300);
-            }, 3000);
-        }
-
-        // Keyboard navigation
-        document.addEventListener('keydown', function(e) {
-            if (document.getElementById('commentOverlay').classList.contains('active')) {
-                if (e.key === 'Escape') {
-                    closeCommentPanel();
-                }
-                return;
-            }
-            
-            switch(e.key) {
-                case 'ArrowRight':
-                case ' ':
-                    e.preventDefault();
-                    changeSlide(1);
-                    break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    changeSlide(-1);
-                    break;
-                case 'f':
-                case 'F11':
-                    e.preventDefault();
-                    toggleFullscreen();
-                    break;
-                case 'c':
-                case 'C':
-                    e.preventDefault();
-                    openCommentPanel();
-                    break;
-            }
-        });
-
-        // Auto-hide navigation in fullscreen
-        let navigationTimeout;
-        const navigation = document.querySelector('.navigation');
-        const slideIndicator = document.querySelector('.slide-indicator');
-
-        function resetNavigationTimeout() {
-            clearTimeout(navigationTimeout);
+    // Handle fullscreen change
+    document.addEventListener('fullscreenchange', function() {
+        if (document.fullscreenElement) {
+            document.body.classList.add('presentation-mode');
+        } else {
+            document.body.classList.remove('presentation-mode');
             if (navigation) navigation.style.opacity = '1';
             if (slideIndicator) slideIndicator.style.opacity = '1';
-            
-            navigationTimeout = setTimeout(() => {
-                if (document.fullscreenElement) {
-                    if (navigation) navigation.style.opacity = '0.3';
-                    if (slideIndicator) slideIndicator.style.opacity = '0.3';
-                }
-            }, 3000);
         }
+    });
 
-        document.addEventListener('mousemove', resetNavigationTimeout);
-        document.addEventListener('keydown', resetNavigationTimeout);
-        document.addEventListener('touchstart', resetNavigationTimeout);
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', initPresentation);
 
-        // Handle fullscreen change
-        document.addEventListener('fullscreenchange', function() {
-            if (document.fullscreenElement) {
-                document.body.classList.add('presentation-mode');
-            } else {
-                document.body.classList.remove('presentation-mode');
-                if (navigation) navigation.style.opacity = '1';
-                if (slideIndicator) slideIndicator.style.opacity = '1';
-            }
-        });
-
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', initPresentation);
-
-        // Add CSS animations
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideDown {
-                from { transform: translateX(-50%) translateY(-100%); }
-                to { transform: translateX(-50%) translateY(0); }
-            }
-            @keyframes slideUp {
-                from { transform: translateX(-50%) translateY(0); }
-                to { transform: translateX(-50%) translateY(-100%); }
-            }
-        `;
-        document.head.appendChild(style);
-    </script>
+    // Add CSS animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-100%); }
+            to { transform: translateX(-50%) translateY(0); }
+        }
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(0); }
+            to { transform: translateX(-50%) translateY(-100%); }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
 </body>
 </html> 
