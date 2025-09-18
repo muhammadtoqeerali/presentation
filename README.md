@@ -3452,36 +3452,39 @@
                 showNotification('All comments cleared!', 'success');
             }
         }
-
-        // Save comments to localStorage
-        function saveCommentsToStorage() {
-            localStorage.setItem('presentationComments', JSON.stringify(comments));
+// Load comments from Vercel API
+async function loadCommentsFromStorage() {
+    try {
+        const response = await fetch('https://presentation-lime.vercel.app/api/comments');
+        if (response.ok) {
+            const data = await response.json();
+            comments = data.comments || {};
+            updateCommentBadge();
+            console.log('Comments loaded from Vercel API');
+            showNotification('Comments loaded successfully!', 'success');
+        } else {
+            throw new Error('Failed to load comments');
         }
-
-    // Load comments from GitHub (or fallback to local storage)
-    async function loadCommentsFromStorage() {
-        try {
-            // Try to load from GitHub first
-            const response = await fetch('https://muhammadtoqeerali.github.io/presentation/comments.json');
-            if (response.ok) {
-                const data = await response.json();
-                comments = data.comments || {};
-                updateCommentBadge();
-                console.log('Comments loaded from GitHub');
-            } else {
-                throw new Error('Comments file not found online');
-            }
-        } catch (error) {
-            // Fallback to local storage
-            console.log('Loading from local storage instead');
-            const saved = localStorage.getItem('presentationComments');
-            if (saved) {
-                comments = JSON.parse(saved);
-                updateCommentBadge();
-            }
-        }
+    } catch (error) {
+        console.error('Error loading comments:', error);
+        showNotification('Could not load comments from server', 'warning');
+        
+        // Fallback to empty comments
+        comments = {};
+        updateCommentBadge();
     }
+}
 
+// Save comments to Vercel API
+async function saveCommentsToStorage() {
+    try {
+        const response = await fetch('https://presentation-lime.vercel.app/api/comments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ comments: comments })
+        });
         // Utility function to escape HTML
         function escapeHtml(text) {
             const div = document.createElement('div');
