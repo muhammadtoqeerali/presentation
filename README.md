@@ -3354,10 +3354,13 @@
         commentList.innerHTML = html;
     }
 
-    // Add new comment
+
     async function addComment() {
+        console.log('=== ADD COMMENT DEBUG ===');
         const author = document.getElementById('authorName').value.trim();
         const text = document.getElementById('commentText').value.trim();
+        
+        console.log('Author:', author, 'Text:', text);
         
         if (!author || !text) {
             showNotification('Please fill in both your name and comment!', 'warning');
@@ -3377,8 +3380,13 @@
             slideIndex: currentSlideIndex
         };
         
+        console.log('Created comment:', comment);
+        console.log('Current slide index:', currentSlideIndex);
+        
         // Add comment
         comments[currentSlideIndex].push(comment);
+        
+        console.log('Comments after adding:', comments);
         
         // Save to Vercel API
         await saveCommentsToStorage();
@@ -3393,8 +3401,8 @@
         
         // Show success feedback
         showNotification('Comment added successfully!', 'success');
-    }
-
+}
+    
     // Update comment badge
     function updateCommentBadge() {
         let totalComments = 0;
@@ -3475,8 +3483,9 @@
         }
     }
 
-    // Save comments to Vercel API
     async function saveCommentsToStorage() {
+        console.log('=== SAVE COMMENTS DEBUG ===');
+        console.log('Saving comments to API:', comments);
         try {
             const response = await fetch('https://presentation-lime.vercel.app/api/comments', {
                 method: 'POST',
@@ -3485,6 +3494,8 @@
                 },
                 body: JSON.stringify({ comments: comments })
             });
+            
+            console.log('Save response status:', response.status);
             
             if (response.ok) {
                 const result = await response.json();
