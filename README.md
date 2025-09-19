@@ -3616,7 +3616,7 @@
         }
     });
 
-    // Initialize when page loads
+    // Initialize
     document.addEventListener('DOMContentLoaded', initPresentation);
 
     // Add CSS animations
