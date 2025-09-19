@@ -3535,7 +3535,7 @@
                 showNotification('Comments saved locally as backup', 'warning');
             }
         }
-    
+        console.log('Script version 3 loaded');
         // Auto-refresh comments every 30 seconds to see others' comments
         // FIXED: Remove the conflicting condition
         setInterval(async () => {
