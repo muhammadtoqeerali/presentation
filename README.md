@@ -3473,9 +3473,10 @@
         async function loadCommentsFromStorage() {
             console.log('=== LOAD COMMENTS FROM API DEBUG ===');
             try {
-                const response = await fetch('https://presentation-lime.vercel.app/api/comments');
+                const response = await fetch('https://presentation-indol-eight.vercel.app/api/comments');
                 console.log('API response status:', response.status);
-                
+                presentation-indol-eight.vercel.app
+
                 if (response.ok) {
                     const data = await response.json();
                     console.log('API response data:', data);
@@ -3651,7 +3652,7 @@
             }
         });
     
-        // Initialize
+        // Initiali
         document.addEventListener('DOMContentLoaded', initPresentation);
     
         // Add CSS animations
